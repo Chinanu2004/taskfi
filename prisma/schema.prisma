@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int      @id @default(autoincrement())
+  walletAddress   String   @unique
+  isWalletVerified Boolean @default(false)
+  profileImage    String?
+
+  freelancer    FreelancerProfile? @relation("UserFreelancerProfile")
+  hirer         HirerProfile?      @relation("UserHirerProfile")
+
+  sentMessages     Message[]       @relation("MessageSender")
+  receivedMessages Message[]       @relation("MessageReceiver")
+  notifications    Notification[]
+  reviewsGiven     Review[]        @relation("HirerReviews")
+}
+
+model FreelancerProfile {
+  id                   Int                  @id @default(autoincrement())
+  userId               Int                  @unique
+  user                 User                 @relation("UserFreelancerProfile", fields: [userId], references: [id])
+  categories           Category[]           @relation("FreelancerCategories")
+  rating               Int                  @default(0)
+  applications         JobApplication[]
+  jobs                 Job[]                @relation("JobFreelancer")
+  freelancerCategories FreelancerCategory[]
+  bio                  String               @default("")
+  gigs                 Gig[]
+  reviewsReceived      Review[]             @relation("FreelancerReviews")
+
+  portfolioItems PortfolioItem[] // 👈 NEW
+}
+
+model HirerProfile {
+  id     Int   @id @default(autoincrement())
+  userId Int   @unique
+  user   User  @relation("UserHirerProfile", fields: [userId], references: [id])
+  jobs   Job[]
+}
+
+model Category {
+  id                   Int                  @id @default(autoincrement())
+  name                 String               @unique
+  freelancers          FreelancerProfile[]  @relation("FreelancerCategories")
+  jobs                 Job[]
+  freelancerCategories FreelancerCategory[]
+}
+
+model Job {
+  id           Int     @id @default(autoincrement())
+  title        String
+  description  String
+  price        Float // Required!
+  token        String? // "SOL" or "USDC"
+  categoryId   Int
+  hirerId      Int
+  freelancerId Int?
+  status       String  @default("active") // NEW - for status tracking
+  reviews      Review? // One-to-one since jobId is unique
+
+  chat   Chat? @relation("JobChat", fields: [chatId], references: [id])
+  chatId Int?  @unique
+
+  createdAt  DateTime  @default(now())
+  isReleased Boolean   @default(false)
+  releasedAt DateTime?
+
+  category   Category           @relation(fields: [categoryId], references: [id])
+  hirer      HirerProfile       @relation(fields: [hirerId], references: [id])
+  freelancer FreelancerProfile? @relation("JobFreelancer", fields: [freelancerId], references: [id])
+
+  applications JobApplication[]
+}
+
+model JobApplication {
+  id               Int    @id @default(autoincrement())
+  jobId            Int
+  freelancerId     Int
+  status           String @default("applied")
+  completionStatus String @default("pending")
+
+  job        Job               @relation(fields: [jobId], references: [id])
+  freelancer FreelancerProfile @relation(fields: [freelancerId], references: [id])
+}
+
+model Chat {
+  id       Int       @id @default(autoincrement())
+  job      Job?      @relation("JobChat") // ← this is the inverse side, NO fields/references here
+  messages Message[]
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  chatId     Int
+  senderId   Int
+  receiverId Int
+  content    String
+  sentAt     DateTime @default(now())
+
+  chat     Chat @relation(fields: [chatId], references: [id])
+  sender   User @relation("MessageSender", fields: [senderId], references: [id])
+  receiver User @relation("MessageReceiver", fields: [receiverId], references: [id])
+}
+
+model FreelancerCategory {
+  id           Int               @id @default(autoincrement())
+  freelancerId Int
+  categoryId   Int
+  freelancer   FreelancerProfile @relation(fields: [freelancerId], references: [id])
+  category     Category          @relation(fields: [categoryId], references: [id])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String // e.g. 'job_accepted', 'message_received'
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Gig {
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String
+  freelancerId Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  freelancer     FreelancerProfile @relation(fields: [freelancerId], references: [id])
+  priceTiers     PriceTier[]
+  acceptedTokens String? // ["SOL", "USDC"]
+
+  isActive Boolean @default(true)
+}
+
+model PriceTier {
+  id           Int     @id @default(autoincrement())
+  gigId        Int
+  name         String // Basic, Standard, Premium
+  description  String
+  price        Float // Store as SOL or USDC amount
+  token        String? // "SOL" or "USDC"
+  deliveryDays Int // Estimated delivery time in days
+
+  gig Gig @relation(fields: [gigId], references: [id])
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  jobId Int @unique
+  job   Job @relation(fields: [jobId], references: [id])
+
+  hirerId Int
+  hirer   User @relation("HirerReviews", fields: [hirerId], references: [id])
+
+  freelancerId Int
+  freelancer   FreelancerProfile @relation("FreelancerReviews", fields: [freelancerId], references: [id])
+}
+
+model PortfolioItem {
+  id                  Int               @id @default(autoincrement())
+  url                 String
+  freelancerProfileId Int
+  freelancerProfile   FreelancerProfile @relation(fields: [freelancerProfileId], references: [id])
+}

@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE `job` ADD COLUMN `isReleased` BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN `releasedAt` DATETIME(3) NULL,
+    ALTER COLUMN `price` DROP DEFAULT;
